@@ -474,7 +474,7 @@ VectorXd UKF::CalculateMean(MatrixXd& matrix){
   return mean;
 }
 
-MatrixXd UKF::CalculateVariance(MatrixXd& matrix, VectorXd mean){
+MatrixXd UKF::CalculateVariance(MatrixXd& matrix, VectorXd& mean){
   //measurement covariance matrix S
   MatrixXd S = MatrixXd(matrix.rows(), matrix.rows());
   S.fill(0.0);
