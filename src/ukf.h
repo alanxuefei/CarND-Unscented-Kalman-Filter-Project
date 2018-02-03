@@ -111,11 +111,8 @@ public:
 
   MatrixXd GenerateSigmaPoints();
   MatrixXd SigmaPointPrediction(MatrixXd& Xsig_aug, double delta_t);
-  struct MeanVariance {
-    VectorXd mean;
-    MatrixXd variance;
-  };
-  MeanVariance CalculateMeanAndCovariance();
+  VectorXd CalculateMean(MatrixXd& matrix);
+  MatrixXd CalculateVariance(MatrixXd& matrix, VectorXd mean);
 };
 
 #endif /* UKF_H */

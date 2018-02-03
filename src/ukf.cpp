@@ -72,6 +72,14 @@ UKF::UKF() {
   //create vector for weights
   weights_ = VectorXd(2 * n_aug_ + 1);
 
+  // set weights
+  double weight_0 = lambda_ / (lambda_ + n_aug_);
+  weights_(0) = weight_0;
+  for (int i = 1; i < 2 * n_aug_ + 1; i++) {  //2n+1 weights
+    double weight = 0.5 / (n_aug_ + lambda_);
+    weights_(i) = weight;
+  }
+
   // the current NIS for radar
   NIS_radar_ = 0.0;
 
@@ -190,31 +198,11 @@ void UKF::Prediction(double delta_t) {
   *  Convert Predicted Sigma Points to Mean/Covariance
   ****************************************************************************/
 
-  // set weights
-  double weight_0 = lambda_ / (lambda_ + n_aug_);
-  weights_(0) = weight_0;
-  for (int i = 1; i < 2 * n_aug_ + 1; i++) {  //2n+1 weights
-    double weight = 0.5 / (n_aug_ + lambda_);
-    weights_(i) = weight;
-  }
-
   //predicted state mean
-  x_.fill(0.0);
-  for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
-    x_ = x_ + weights_(i) * Xsig_pred_.col(i);
-  }
+  x_ = CalculateMean(Xsig_pred_);
 
   //predicted state covariance matrix
-  P_.fill(0.0);
-  for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //iterate over sigma points
-
-    // state difference
-    VectorXd x_diff = Xsig_pred_.col(i) - x_;
-    //angle normalization
-    x_diff(3) = atan2(sin(x_diff(3)), cos(x_diff(3)));
-
-    P_ = P_ + weights_(i) * x_diff * x_diff.transpose();
-  }
+  P_ = CalculateVariance(Xsig_pred_, x_);
 }
 
 /**
@@ -251,22 +239,10 @@ void UKF::UpdateLidar(MeasurementPackage meas_package) {
   }
 
   //mean predicted measurement
-  VectorXd z_pred = VectorXd(n_z);
-  z_pred.fill(0.0);
-  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
-    z_pred = z_pred + weights_(i) * Zsig.col(i);
-  }
+  VectorXd z_pred = CalculateMean(Zsig);
 
   //measurement covariance matrix S
-  MatrixXd S = MatrixXd(n_z, n_z);
-  S.fill(0.0);
-  for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
-
-    //residual
-    VectorXd z_diff = Zsig.col(i) - z_pred;
-
-    S = S + weights_(i) * z_diff * z_diff.transpose();
-  }
+  MatrixXd S = CalculateVariance(Zsig, z_pred);
 
   //add measurement noise covariance matrix
   MatrixXd R = MatrixXd(n_z, n_z);
@@ -350,24 +326,10 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   }
 
   //mean predicted measurement
-  VectorXd z_pred = VectorXd(n_z);
-  z_pred.fill(0.0);
-  for (int i = 0; i < 2 * n_aug_ + 1; i++) {
-    z_pred = z_pred + weights_(i) * Zsig.col(i);
-  }
+  VectorXd z_pred = CalculateMean(Zsig);
 
   //measurement covariance matrix S
-  MatrixXd S = MatrixXd(n_z, n_z);
-  S.fill(0.0);
-  for (int i = 0; i < 2 * n_aug_ + 1; i++) {  //2n+1 simga points
-    //residual
-    VectorXd z_diff = Zsig.col(i) - z_pred;
-
-    //angle normalization
-    z_diff(1) = atan2(sin(z_diff(1)), cos(z_diff(1)));
-
-    S = S + weights_(i) * z_diff * z_diff.transpose();
-  }
+  MatrixXd S = CalculateVariance(Zsig, z_pred);
 
   //add measurement noise covariance matrix
   MatrixXd R = MatrixXd(n_z, n_z);
@@ -503,31 +465,27 @@ MatrixXd UKF::SigmaPointPrediction(MatrixXd& Xsig_aug, double delta_t){
   return Xsig_out;
 }
 
-//MeanVariance UKF::CalculateMeanAndCovariance(int n_x, int n_aug, double lambda, MatrixXd& Xsig_pred, ){
-//
-//  // set weights
-//  double weight_0 = lambda/(lambda+n_aug);
-//  weights(0) = weight_0;
-//  for (int i=1; i<2*n_aug+1; i++) {  //2n+1 weights
-//    double weight = 0.5/(n_aug+lambda);
-//    weights(i) = weight;
-//  }
-//
-//  //predicted state mean
-//  x.fill(0.0);
-//  for (int i = 0; i < 2 * n_aug + 1; i++) {  //iterate over sigma points
-//    x = x+ weights(i) * Xsig_pred.col(i);
-//  }
-//
-//  //predicted state covariance matrix
-//  P.fill(0.0);
-//  for (int i = 0; i < 2 * n_aug + 1; i++) {  //iterate over sigma points
-//
-//    // state difference
-//    VectorXd x_diff = Xsig_pred.col(i) - x;
-//    //angle normalization
-//    while (x_diff(3)> M_PI) x_diff(3)-=2.*M_PI;
-//    while (x_diff(3)<-M_PI) x_diff(3)+=2.*M_PI;
-//
-//    P = P + weights(i) * x_diff * x_diff.transpose() ;
-//}
+VectorXd UKF::CalculateMean(MatrixXd& matrix){
+  VectorXd mean = VectorXd(matrix.rows());
+  mean.fill(0.0);
+  for (int i = 0; i < matrix.cols(); i++) {  //iterate over sigma points
+    mean = mean + weights_(i) * matrix.col(i);
+  }
+  return mean;
+}
+
+MatrixXd UKF::CalculateVariance(MatrixXd& matrix, VectorXd mean){
+  //measurement covariance matrix S
+  MatrixXd S = MatrixXd(matrix.rows(), matrix.rows());
+  S.fill(0.0);
+  for (int i = 0; i < matrix.cols(); i++) {  //2n+1 simga points
+    //residual
+    VectorXd z_diff = matrix.col(i) - mean;
+
+    //angle normalization
+    z_diff(1) = atan2(sin(z_diff(1)), cos(z_diff(1)));
+
+    S = S + weights_(i) * z_diff * z_diff.transpose();
+  }
+  return S;
+}
