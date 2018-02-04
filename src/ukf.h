@@ -113,6 +113,7 @@ public:
   MatrixXd SigmaPointPrediction(MatrixXd& Xsig_aug, double delta_t);
   VectorXd CalculateMean(MatrixXd& matrix);
   MatrixXd CalculateVariance(MatrixXd& matrix, VectorXd& mean);
+  double CalculateVarianceNormalizeAngle(double phi);
 };
 
 #endif /* UKF_H */

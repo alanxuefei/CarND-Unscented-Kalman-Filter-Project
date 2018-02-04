@@ -25,7 +25,7 @@ UKF::UKF() {
   P_ = MatrixXd(5, 5);
 
   // Process noise standard deviation longitudinal acceleration in m/s^2
-  std_a_ = 30;
+  std_a_ = 2;
 
   // Process noise standard deviation yaw acceleration in rad/s^2
   std_yawdd_ = 0.3;
@@ -73,12 +73,8 @@ UKF::UKF() {
   weights_ = VectorXd(2 * n_aug_ + 1);
 
   // set weights
-  double weight_0 = lambda_ / (lambda_ + n_aug_);
-  weights_(0) = weight_0;
-  for (int i = 1; i < 2 * n_aug_ + 1; i++) {  //2n+1 weights
-    double weight = 0.5 / (n_aug_ + lambda_);
-    weights_(i) = weight;
-  }
+  weights_.fill(0.5/(n_aug_ + lambda_));
+  weights_(0) = lambda_/(lambda_ + n_aug_);
 
   // the current NIS for radar
   NIS_radar_ = 0.0;
@@ -118,8 +114,8 @@ void UKF::ProcessMeasurement(MeasurementPackage meas_package) {
       x_ << 1, 1, 1, 1, 0.1;
 
       // init covariance matrix
-      P_ <<    1, 0, 0, 0, 0,
-               0, 1, 0, 0, 0,
+      P_ <<    0.15, 0, 0, 0, 0,
+               0, 0.15, 0, 0, 0,
                0, 0, 1, 0, 0,
                0, 0, 0, 1, 0,
                0, 0, 0, 0, 1;
@@ -351,7 +347,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
     //residual
     VectorXd z_diff = Zsig.col(i) - z_pred;
     //angle normalization
-    z_diff(1) = atan2(sin(z_diff(1)), cos(z_diff(1)));
+    z_diff(1) = CalculateVarianceNormalizeAngle(z_diff(1));
 
     // state difference
     VectorXd x_diff = Xsig_pred_.col(i) - x_;
@@ -368,7 +364,7 @@ void UKF::UpdateRadar(MeasurementPackage meas_package) {
   VectorXd z_diff = z - z_pred;
 
   //angle normalization
-  z_diff(1) = atan2(sin(z_diff(1)), cos(z_diff(1)));
+  z_diff(1) = CalculateVarianceNormalizeAngle(z_diff(1));
 
   //calculate NIS
   NIS_radar_ = z_diff.transpose() * S.inverse() * z_diff;
@@ -483,9 +479,14 @@ MatrixXd UKF::CalculateVariance(MatrixXd& matrix, VectorXd& mean){
     VectorXd z_diff = matrix.col(i) - mean;
 
     //angle normalization
-    z_diff(1) = atan2(sin(z_diff(1)), cos(z_diff(1)));
+    z_diff(1) = CalculateVarianceNormalizeAngle(z_diff(1));
 
     S = S + weights_(i) * z_diff * z_diff.transpose();
   }
   return S;
+}
+
+double UKF::CalculateVarianceNormalizeAngle(double phi)
+{
+  return  atan2(sin(phi), cos(phi));
 }
